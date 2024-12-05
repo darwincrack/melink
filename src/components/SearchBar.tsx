@@ -15,8 +15,9 @@ export function SearchBar() {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search links by title, description, or tags..."
-        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Busca enlaces por título, descripción o etiquetas..."
+        className="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600 
+        focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400"
       />
     </div>
   );
