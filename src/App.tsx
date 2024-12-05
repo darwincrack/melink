@@ -3,6 +3,7 @@ import { LinkForm } from './components/LinkForm';
 import { AdvancedSearch } from './components/AdvancedSearch';
 import { LinkGrid } from './components/LinkGrid';
 import { LoginForm } from './components/LoginForm';
+import { LandingPage } from './components/LandingPage';
 import { Bookmark, LogOut } from 'lucide-react';
 import { useLinkStore } from './store/useLinkStore';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -26,7 +27,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <LoginForm />;
+    return <LandingPage />;
   }
 
   return (
