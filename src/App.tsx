@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { LinkForm } from './components/LinkForm';
 import { SearchBar } from './components/SearchBar';
 import { LinkGrid } from './components/LinkGrid';
 import { Bookmark } from 'lucide-react';
+import { useLinkStore } from './store/useLinkStore';
 
 function App() {
+  const fetchLinks = useLinkStore((state) => state.fetchLinks);
+
+  useEffect(() => {
+    fetchLinks();
+  }, [fetchLinks]);
+
   return (
     <div className="min-h-screen bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 py-8">

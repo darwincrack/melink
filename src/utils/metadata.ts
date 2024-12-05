@@ -6,24 +6,18 @@ export interface URLMetadata {
 
 export async function getURLMetadata(url: string): Promise<URLMetadata> {
   try {
-    const response = await fetch('http://localhost:3000/api/metadata', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch metadata');
-    }
-
-    const metadata = await response.json();
-    return metadata;
+    const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
+    const data = await response.json();
+    
+    return {
+      title: data.data.title || new URL(url).hostname,
+      description: data.data.description || 'No description available',
+      favicon: data.data.logo?.url || `${new URL(url).origin}/favicon.ico`
+    };
   } catch (error) {
     console.error('Error fetching metadata:', error);
     return {
-      title: 'Unknown Title',
+      title: new URL(url).hostname,
       description: 'No description available',
       favicon: ''
     };
