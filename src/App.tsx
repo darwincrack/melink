@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { LinkForm } from './components/LinkForm';
-import { SearchBar } from './components/SearchBar';
+import { AdvancedSearch } from './components/AdvancedSearch';
 import { LinkGrid } from './components/LinkGrid';
 import { Bookmark } from 'lucide-react';
 import { useLinkStore } from './store/useLinkStore';
@@ -27,7 +27,7 @@ function App() {
 
         <main>
           <LinkForm />
-          <SearchBar />
+          <AdvancedSearch />
           <LinkGrid />
         </main>
       </div>
