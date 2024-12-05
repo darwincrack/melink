@@ -54,8 +54,8 @@ export function LinkListItem({ link, viewMode }: Props) {
     : "bg-gray-800 rounded-lg overflow-hidden shadow-lg flex gap-4";
 
   const imageClass = viewMode === 'grid'
-    ? "w-full h-48 object-cover"
-    : "w-48 h-48 object-cover flex-shrink-0";
+    ? "w-full h-32 object-cover"
+    : "w-24 h-24 object-cover flex-shrink-0";
 
   return (
     <div className={containerClass}>
