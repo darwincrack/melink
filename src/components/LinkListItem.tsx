@@ -1,80 +1,135 @@
-import React from 'react';
-import { Link } from '../types/link';
+import React, { useState, KeyboardEvent } from 'react';
+import { Trash2, Plus, X } from 'lucide-react';
 import { useLinkStore } from '../store/useLinkStore';
-import { X, Tag } from 'lucide-react';
-import { cn } from '../utils/cn';
 
-interface LinkListItemProps {
-  link: Link;
+interface Link {
+  id: number;
+  url: string;
+  title: string;
+  description: string;
+  image: string;
+  tags: string[];
+  created_at: string;
 }
 
-export function LinkListItem({ link }: LinkListItemProps) {
-  const { removeLink, addTagToLink, removeTagFromLink } = useLinkStore();
-  const [newTag, setNewTag] = React.useState('');
+interface Props {
+  link: Link;
+  viewMode: 'grid' | 'list';
+}
 
-  const handleAddTag = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newTag.trim()) {
-      e.preventDefault();
-      addTagToLink(link.id, newTag.trim());
-      setNewTag('');
+export function LinkListItem({ link, viewMode }: Props) {
+  const [newTag, setNewTag] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const { deleteLink, updateLinkTags } = useLinkStore();
+
+  const handleDelete = async () => {
+    try {
+      await deleteLink(link.id);
+    } catch (error) {
+      console.error('Error al eliminar el enlace:', error);
     }
   };
 
+  const handleAddTag = async () => {
+    if (newTag.trim()) {
+      await updateLinkTags(link.id, [...(link.tags || []), newTag.trim()]);
+      setNewTag('');
+      setIsAddingTag(false);
+    }
+  };
+
+  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAddTag();
+    }
+  };
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    const newTags = link.tags.filter(tag => tag !== tagToRemove);
+    await updateLinkTags(link.id, newTags);
+  };
+
+  const containerClass = viewMode === 'grid'
+    ? "bg-gray-800 rounded-lg overflow-hidden shadow-lg"
+    : "bg-gray-800 rounded-lg overflow-hidden shadow-lg flex gap-4";
+
+  const imageClass = viewMode === 'grid'
+    ? "w-full h-48 object-cover"
+    : "w-48 h-48 object-cover flex-shrink-0";
+
   return (
-    <div className="bg-gray-800 rounded-lg p-4 flex items-center gap-4">
-      <div className="h-12 w-12 flex-shrink-0">
-        {link.image ? (
-          <img
-            src={link.image}
-            alt={link.title}
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          <div className="w-full h-full bg-gray-700 rounded" />
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="text-lg font-semibold text-white truncate">{link.title}</h3>
-          <button
-            onClick={() => removeLink(link.id)}
-            className="text-gray-400 hover:text-red-400 flex-shrink-0"
+    <div className={containerClass}>
+      {link.image && (
+        <img
+          src={link.image}
+          alt={link.title}
+          className={imageClass}
+        />
+      )}
+      <div className="p-4 flex-1">
+        <h3 className="text-lg font-semibold text-white mb-2">
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-blue-400"
           >
-            <X size={20} />
-          </button>
-        </div>
-
-        <p className="text-gray-400 text-sm line-clamp-1 mb-2">{link.description}</p>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <Tag size={16} className="text-gray-400" />
-          {link.tags.map((tag) => (
+            {link.title}
+          </a>
+        </h3>
+        <p className="text-gray-400 text-sm mb-4">{link.description}</p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {link.tags?.map((tag) => (
             <span
               key={tag}
-              className={cn(
-                "px-2 py-1 rounded-full text-sm",
-                "bg-blue-900 text-blue-300"
-              )}
+              className="group px-2 py-1 bg-gray-700 text-gray-300 text-sm rounded-full flex items-center gap-1"
             >
               {tag}
               <button
-                onClick={() => removeTagFromLink(link.id, tag)}
-                className="ml-1 text-blue-400 hover:text-blue-200"
+                onClick={() => handleRemoveTag(tag)}
+                className="opacity-0 group-hover:opacity-100 hover:text-red-400"
+                title="Eliminar etiqueta"
               >
-                ×
+                <X size={14} />
               </button>
             </span>
           ))}
-          <input
-            type="text"
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={handleAddTag}
-            placeholder="Add tag..."
-            className="text-sm px-2 py-1 rounded-full bg-gray-700 text-white border border-gray-600 
-            focus:outline-none focus:ring-1 focus:ring-blue-400"
-          />
+          {isAddingTag ? (
+            <input
+              type="text"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyPress={handleKeyPress}
+              onBlur={() => {
+                handleAddTag();
+                setIsAddingTag(false);
+              }}
+              className="px-2 py-1 bg-gray-700 text-white text-sm rounded-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Nueva etiqueta..."
+              autoFocus
+            />
+          ) : (
+            <button
+              onClick={() => setIsAddingTag(true)}
+              className="px-2 py-1 text-gray-400 hover:text-white text-sm rounded-full flex items-center gap-1"
+            >
+              <Plus size={14} />
+              Agregar etiqueta
+            </button>
+          )}
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-gray-500 text-sm">
+            {new Date(link.created_at).toLocaleDateString()}
+          </span>
+          <button
+            onClick={handleDelete}
+            className="text-gray-400 hover:text-red-400 transition-colors"
+            title="Eliminar enlace"
+            aria-label="Eliminar enlace"
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
       </div>
     </div>

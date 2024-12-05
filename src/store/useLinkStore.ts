@@ -1,212 +1,229 @@
 import { create } from 'zustand';
-import { Link } from '../types/link';
 import { supabase } from '../config/supabase';
+import { getURLMetadata } from '../utils/metadata';
 
-interface FilterOptions {
-  searchTerm: string;
+interface Link {
+  id: number;
+  url: string;
+  title: string;
+  description: string;
+  image: string;
   tags: string[];
-  dateRange: 'all' | 'today' | 'week' | 'month';
-  sortBy: 'date' | 'title' | 'tags';
-  sortOrder: 'asc' | 'desc';
+  user_id: string;
+  created_at: string;
 }
 
 interface LinkStore {
   links: Link[];
-  searchTerm: string;
+  isLoading: boolean;
+  error: string | null;
   viewMode: 'grid' | 'list';
-  filters: FilterOptions;
-  allTags: string[];
-  setSearchTerm: (term: string) => void;
-  addLink: (link: Omit<Link, 'id'>) => Promise<void>;
-  removeLink: (id: string) => Promise<void>;
-  addTagToLink: (linkId: string, tag: string) => Promise<void>;
-  removeTagFromLink: (linkId: string, tag: string) => Promise<void>;
+  filters: {
+    searchTerm: string;
+    tags: string[];
+    dateRange: 'all' | 'today' | 'week' | 'month';
+    sortBy: 'date' | 'title' | 'tags';
+    sortOrder: 'asc' | 'desc';
+  };
   fetchLinks: () => Promise<void>;
+  addLink: (url: string, tags: string[]) => Promise<void>;
+  deleteLink: (id: number) => Promise<void>;
+  setFilters: (filters: Partial<LinkStore['filters']>) => void;
   setViewMode: (mode: 'grid' | 'list') => void;
-  setFilters: (filters: FilterOptions) => void;
   getFilteredLinks: () => Link[];
+  updateLinkTags: (linkId: number, tags: string[]) => Promise<void>;
 }
 
 export const useLinkStore = create<LinkStore>((set, get) => ({
   links: [],
-  searchTerm: '',
+  isLoading: false,
+  error: null,
   viewMode: 'grid',
   filters: {
     searchTerm: '',
     tags: [],
     dateRange: 'all',
     sortBy: 'date',
-    sortOrder: 'desc'
+    sortOrder: 'asc'
   },
-  allTags: [],
-  
-  setSearchTerm: (term) => set({ searchTerm: term }),
-  
-  setViewMode: (mode) => set({ viewMode: mode }),
-  
-  setFilters: (filters) => set({ filters }),
 
   fetchLinks: async () => {
-    const { data, error } = await supabase
-      .from('links')
-      .select('*')
-      .order('created_at', { ascending: false });
+    set({ isLoading: true, error: null });
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
 
-    if (error) {
-      console.error('Error fetching links:', error);
-      return;
+      if (!userId) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      const { data, error } = await supabase
+        .from('links')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      set({ links: data || [] });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Error al cargar los enlaces' });
+    } finally {
+      set({ isLoading: false });
     }
-
-    // Extraer todas las etiquetas únicas
-    const tags = new Set<string>();
-    data.forEach(link => link.tags.forEach(tag => tags.add(tag)));
-
-    set({ 
-      links: data,
-      allTags: Array.from(tags)
-    });
   },
 
-  addLink: async (linkData) => {
-    const { data, error } = await supabase
-      .from('links')
-      .insert([linkData])
-      .select()
-      .single();
+  addLink: async (url: string, tags: string[]) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
 
-    if (error) {
-      console.error('Error adding link:', error);
-      return;
+      if (!userId) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      if (typeof url !== 'string') {
+        throw new Error('URL debe ser un string');
+      }
+
+      const metadata = await getURLMetadata(url.trim());
+
+      const { error } = await supabase.from('links').insert([
+        {
+          url: url.trim(),
+          tags: tags || [],
+          user_id: userId,
+          title: metadata.title,
+          description: metadata.description,
+          image: metadata.favicon,
+          created_at: new Date().toISOString()
+        },
+      ]);
+
+      if (error) throw error;
+      await get().fetchLinks();
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Error al agregar el enlace' });
+    } finally {
+      set({ isLoading: false });
     }
+  },
 
+  deleteLink: async (id: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
+
+      if (!userId) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      const { error } = await supabase
+        .from('links')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      await get().fetchLinks();
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Error al eliminar el enlace' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  setFilters: (newFilters) => {
     set((state) => ({
-      links: [data, ...state.links]
+      filters: { ...state.filters, ...newFilters }
     }));
   },
 
-  removeLink: async (id) => {
-    const { error } = await supabase
-      .from('links')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error removing link:', error);
-      return;
-    }
-
-    set((state) => ({
-      links: state.links.filter((link) => link.id !== id)
-    }));
-  },
-
-  addTagToLink: async (linkId, tag) => {
-    const link = get().links.find((l) => l.id === linkId);
-    if (!link) return;
-
-    const updatedTags = [...new Set([...link.tags, tag])];
-    
-    const { error } = await supabase
-      .from('links')
-      .update({ tags: updatedTags })
-      .eq('id', linkId);
-
-    if (error) {
-      console.error('Error adding tag:', error);
-      return;
-    }
-
-    set((state) => ({
-      links: state.links.map((l) =>
-        l.id === linkId ? { ...l, tags: updatedTags } : l
-      )
-    }));
-  },
-
-  removeTagFromLink: async (linkId, tag) => {
-    const link = get().links.find((l) => l.id === linkId);
-    if (!link) return;
-
-    const updatedTags = link.tags.filter((t) => t !== tag);
-    
-    const { error } = await supabase
-      .from('links')
-      .update({ tags: updatedTags })
-      .eq('id', linkId);
-
-    if (error) {
-      console.error('Error removing tag:', error);
-      return;
-    }
-
-    set((state) => ({
-      links: state.links.map((l) =>
-        l.id === linkId ? { ...l, tags: updatedTags } : l
-      )
-    }));
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
   },
 
   getFilteredLinks: () => {
-    const { links, filters } = get();
-    let filtered = [...links];
+    const state = get();
+    let filtered = [...state.links];
 
     // Filtrar por término de búsqueda
-    if (filters.searchTerm) {
-      const search = filters.searchTerm.toLowerCase();
+    if (state.filters.searchTerm) {
+      const searchTerm = state.filters.searchTerm.toLowerCase();
       filtered = filtered.filter(link => 
-        link.title.toLowerCase().includes(search) ||
-        link.description.toLowerCase().includes(search) ||
-        link.tags.some(tag => tag.toLowerCase().includes(search))
+        link.title.toLowerCase().includes(searchTerm) ||
+        link.description.toLowerCase().includes(searchTerm)
       );
     }
 
-    // Filtrar por etiquetas
-    if (filters.tags.length > 0) {
+    // Filtrar por tags
+    if (state.filters.tags.length > 0) {
       filtered = filtered.filter(link =>
-        filters.tags.every(tag => link.tags.includes(tag))
+        state.filters.tags.every(tag => link.tags?.includes(tag))
       );
     }
 
-    // Filtrar por fecha
+    // Filtrar por rango de fecha
     const now = new Date();
-    switch (filters.dateRange) {
+    switch (state.filters.dateRange) {
       case 'today':
-        filtered = filtered.filter(link => 
-          new Date(link.created_at).toDateString() === now.toDateString()
-        );
+        filtered = filtered.filter(link => {
+          const date = new Date(link.created_at);
+          return date.toDateString() === now.toDateString();
+        });
         break;
       case 'week':
         const weekAgo = new Date(now.setDate(now.getDate() - 7));
-        filtered = filtered.filter(link => 
-          new Date(link.created_at) >= weekAgo
-        );
+        filtered = filtered.filter(link => new Date(link.created_at) >= weekAgo);
         break;
       case 'month':
         const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-        filtered = filtered.filter(link => 
-          new Date(link.created_at) >= monthAgo
-        );
+        filtered = filtered.filter(link => new Date(link.created_at) >= monthAgo);
         break;
     }
 
     // Ordenar
     filtered.sort((a, b) => {
-      switch (filters.sortBy) {
+      let comparison = 0;
+      switch (state.filters.sortBy) {
         case 'title':
-          return filters.sortOrder === 'asc' 
-            ? a.title.localeCompare(b.title)
-            : b.title.localeCompare(a.title);
+          comparison = a.title.localeCompare(b.title);
+          break;
         case 'tags':
-          return filters.sortOrder === 'asc'
-            ? a.tags.length - b.tags.length
-            : b.tags.length - a.tags.length;
-        default: // date
-          return filters.sortOrder === 'asc'
-            ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          comparison = (a.tags?.length || 0) - (b.tags?.length || 0);
+          break;
+        default: // 'date'
+          comparison = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
+      return state.filters.sortOrder === 'asc' ? comparison : -comparison;
     });
 
     return filtered;
+  },
+
+  updateLinkTags: async (linkId: number, tags: string[]) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
+
+      if (!userId) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      const { error } = await supabase
+        .from('links')
+        .update({ tags })
+        .eq('id', linkId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      await get().fetchLinks();
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Error al actualizar etiquetas' });
+    } finally {
+      set({ isLoading: false });
+    }
   }
 }));

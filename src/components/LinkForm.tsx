@@ -1,58 +1,72 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
 import { useLinkStore } from '../store/useLinkStore';
-import { getURLMetadata } from '../utils/metadata';
 
 export function LinkForm() {
   const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [tags, setTags] = useState('');
+  const [error, setError] = useState('');
   const addLink = useLinkStore((state) => state.addLink);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url) return;
-
-    setLoading(true);
+    setError('');
+    
     try {
-      const metadata = await getURLMetadata(url);
-      
-      addLink({
-        url,
-        title: metadata.title,
-        description: metadata.description,
-        image: metadata.favicon,
-        tags: [],
-      });
+      // Validar que la URL sea un string y no esté vacía
+      if (typeof url !== 'string' || !url.trim()) {
+        throw new Error('Por favor, ingresa una URL válida');
+      }
 
+      const tagArray = tags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+
+      await addLink(url.trim(), tagArray);
+      
       setUrl('');
+      setTags('');
     } catch (error) {
-      console.error('Error adding link:', error);
-    } finally {
-      setLoading(false);
+      const errorMessage = error instanceof Error ? error.message : 'Error al agregar el enlace';
+      setError(errorMessage);
+      console.error('Error al agregar el enlace:', error);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mb-8">
-      <input
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="Ingresa la URL aquí..."
-        className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600 
-        focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400"
-        required
-      />
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-        focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 
-        focus:ring-offset-gray-900 disabled:opacity-50 flex items-center gap-2"
-      >
-        <Plus size={20} />
-        {loading ? 'Cargando...' : 'Agregar enlace'}
-      </button>
+    <form onSubmit={handleSubmit} className="mb-8">
+      <div className="flex flex-col gap-4">
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500 rounded text-red-500">
+            {error}
+          </div>
+        )}
+        <div>
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Ingresa una URL"
+            className="w-full p-2 rounded bg-gray-700 text-white border border-gray-600"
+            required
+          />
+        </div>
+        <div>
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="Etiquetas (separadas por comas)"
+            className="w-full p-2 rounded bg-gray-700 text-white border border-gray-600"
+          />
+        </div>
+        <button
+          type="submit"
+          className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+        >
+          Agregar enlace
+        </button>
+      </div>
     </form>
   );
 }
