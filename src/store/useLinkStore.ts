@@ -73,7 +73,6 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
   },
 
   addLink: async (url: string, tags: string[]) => {
-    set({ isLoading: true, error: null });
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
@@ -88,7 +87,7 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
 
       const metadata = await getURLMetadata(url.trim());
 
-      const { error } = await supabase.from('links').insert([
+      const { data, error } = await supabase.from('links').insert([
         {
           url: url.trim(),
           tags: tags || [],
@@ -98,19 +97,19 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
           image: metadata.favicon,
           created_at: new Date().toISOString()
         },
-      ]);
+      ]).select();
 
       if (error) throw error;
-      await get().fetchLinks();
+
+      set(state => ({
+        links: [data[0], ...state.links]
+      }));
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error al agregar el enlace' });
-    } finally {
-      set({ isLoading: false });
     }
   },
 
   deleteLink: async (id: number) => {
-    set({ isLoading: true, error: null });
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
@@ -126,11 +125,12 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
         .eq('user_id', userId);
 
       if (error) throw error;
-      await get().fetchLinks();
+
+      set(state => ({
+        links: state.links.filter(link => link.id !== id)
+      }));
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error al eliminar el enlace' });
-    } finally {
-      set({ isLoading: false });
     }
   },
 
@@ -203,7 +203,6 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
   },
 
   updateLinkTags: async (linkId: number, tags: string[]) => {
-    set({ isLoading: true, error: null });
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
@@ -219,11 +218,14 @@ export const useLinkStore = create<LinkStore>((set, get) => ({
         .eq('user_id', userId);
 
       if (error) throw error;
-      await get().fetchLinks();
+
+      set(state => ({
+        links: state.links.map(link => 
+          link.id === linkId ? { ...link, tags } : link
+        )
+      }));
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Error al actualizar etiquetas' });
-    } finally {
-      set({ isLoading: false });
     }
   }
 }));

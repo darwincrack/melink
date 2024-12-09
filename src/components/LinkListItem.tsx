@@ -23,10 +23,14 @@ export function LinkListItem({ link, viewMode }: Props) {
   const { deleteLink, updateLinkTags } = useLinkStore();
 
   const handleDelete = async () => {
-    try {
-      await deleteLink(link.id);
-    } catch (error) {
-      console.error('Error al eliminar el enlace:', error);
+    const isConfirmed = window.confirm('¿Estás seguro de que deseas eliminar este enlace?');
+    
+    if (isConfirmed) {
+      try {
+        await deleteLink(link.id);
+      } catch (error) {
+        console.error('Error al eliminar el enlace:', error);
+      }
     }
   };
 
@@ -49,22 +53,33 @@ export function LinkListItem({ link, viewMode }: Props) {
     await updateLinkTags(link.id, newTags);
   };
 
+  const truncateDescription = (text: string, maxLength: number = 80) => {
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + '...';
+  };
+
   const containerClass = viewMode === 'grid'
     ? "bg-gray-800 rounded-lg overflow-hidden shadow-lg"
     : "bg-gray-800 rounded-lg overflow-hidden shadow-lg flex gap-4";
 
+  const imageContainerClass = viewMode === 'grid'
+    ? "w-full"
+    : "flex items-center justify-center w-24 min-w-24 bg-gray-700 p-2";
+
   const imageClass = viewMode === 'grid'
-    ? "w-full h-32 object-cover"
-    : "w-24 h-24 object-cover flex-shrink-0";
+    ? "w-full h-12 object-contain"
+    : "w-20 h-20 object-contain";
 
   return (
     <div className={containerClass}>
       {link.image && (
-        <img
-          src={link.image}
-          alt={link.title}
-          className={imageClass}
-        />
+        <div className={imageContainerClass}>
+          <img
+            src={link.image}
+            alt={link.title}
+            className={imageClass}
+          />
+        </div>
       )}
       <div className="p-4 flex-1">
         <h3 className="text-lg font-semibold text-white mb-2">
@@ -77,7 +92,9 @@ export function LinkListItem({ link, viewMode }: Props) {
             {link.title}
           </a>
         </h3>
-        <p className="text-gray-400 text-sm mb-4">{link.description}</p>
+        <p className="text-gray-400 text-sm mb-4">
+          {truncateDescription(link.description)}
+        </p>
         <div className="flex flex-wrap gap-2 mb-4">
           {link.tags?.map((tag) => (
             <span
